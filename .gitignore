@@ -1,0 +1,17 @@
+
+**/.terraform/*
+
+# Ignore all .tfstate files
+*.tfstate
+*.tfstate.*
+
+crash.log
+crash.*.log
+
+*.tfvars
+*.tfvars.json
+
+.terraformrc
+terraform.rc
+
+.DS_Store # MacOS
