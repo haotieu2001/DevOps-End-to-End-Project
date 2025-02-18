@@ -19,7 +19,7 @@ jobs:
         TF_VAR_table_name: ${{ secrets.TF_VAR_table_name }}
         TF_VAR_root_domain: "haotieu2001.click"
         TF_VAR_dns_record_ttl: 300
-        TF_VAR_website_bucket: "website-bucket-haotieu2001"
+        TF_VAR_website_bucket: "haotieu2001.click"
         TF_VAR_force_destroy: false
         TF_VAR_versioning_enabled: true
         TF_VAR_index_document: "index.html"
