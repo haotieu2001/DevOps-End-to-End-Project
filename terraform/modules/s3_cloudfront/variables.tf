@@ -24,5 +24,8 @@ variable "ssl_cert_arn" {
   type        = string
 }
 
-variable "route53_zone_id" { 
+variable "route53_zone_id" {
+  description = "The ID of the Route53 zone to create the record in"
+  type        = string
+  
 }
