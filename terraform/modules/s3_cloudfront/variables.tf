@@ -23,3 +23,6 @@ variable "ssl_cert_arn" {
   description = "The ARN of the SSL certificate to use for the website"
   type        = string
 }
+
+variable "route53_zone_id" { 
+}
