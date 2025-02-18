@@ -14,3 +14,12 @@ output "website_url" {
   value       = "http://${aws_s3_bucket.website_bucket.bucket}.s3-website-${var.region}.amazonaws.com"
 }
 
+output "index_document" {
+  description = "The index document for the website"
+  value       = var.index_document
+}
+
+output "bucket_regional_domain_name" {
+  description = "The regional domain name of the bucket"
+  value       = aws_s3_bucket.website_bucket.bucket_regional_domain_name
+}
