@@ -51,4 +51,21 @@ jobs:
 
         - name: Terraform Apply
           run: terraform apply -auto-approve
-    
+
+    Sync_S3:
+      name: Sync files to S3 Bucket
+      needs: terraform
+      runs-on: ubuntu-latest
+  
+      steps:
+        - uses: actions/checkout@master
+        - uses: jakejarvis/s3-sync-action@master
+          with:
+            args: --delete --exclude '.DS_Store'
+  
+          env:
+            AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            AWS_S3_BUCKET: env.TF_VAR_website_bucket
+            AWS_REGION: env.TF_VAR_region
+            SOURCE_DIR: "./website"
