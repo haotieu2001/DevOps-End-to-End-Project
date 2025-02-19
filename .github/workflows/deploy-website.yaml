@@ -53,12 +53,26 @@ jobs:
           run: terraform apply -auto-approve
 
     Sync_S3:
-      name: Sync files to S3 Bucket
+      name: Build and Sync files to S3 Bucket
       needs: terraform
       runs-on: ubuntu-latest
-  
+
       steps:
         - uses: actions/checkout@master
+
+        - name: Set up Node.js
+          uses: actions/setup-node@v2
+          with:
+            node-version: '14'
+
+        - name: Install dependencies
+          run: npm install
+          working-directory: ./website
+
+        - name: Build React app
+          run: npm run build
+          working-directory: ./website
+
         - uses: jakejarvis/s3-sync-action@master
           with:
             args: --delete --exclude '.DS_Store'
@@ -68,7 +82,7 @@ jobs:
             AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
             AWS_S3_BUCKET: "haotieu2001.click"
             AWS_REGION: "us-east-1"
-            SOURCE_DIR: "./website"
+            SOURCE_DIR: "./website/build"
             
     Invalidate_CloudFront:
       name: Invalidate CloudFront Distribution
