@@ -4,7 +4,6 @@ terraform {
     bucket                          = "terraform-state-bucket-haotieu2001"
     key                             = "website/terraform.tfstate"
     dynamodb_table                  = "terraform-state-locks"
-   # encrypt                         = true
-    
+   # encrypt                         = true  
   }
 }

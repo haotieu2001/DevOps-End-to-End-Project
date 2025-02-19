@@ -1,5 +1,5 @@
 resource "aws_cloudfront_origin_access_control" "cloudfront_s3_oac" {
-    name                              = "OAC for S3 Buckets"
+    name                              = "OAC for S3 Buckets 1902"
     description                       = "Origin Access Control for S3 Buckets"
     origin_access_control_origin_type = "s3"
     signing_behavior                  = "always"
