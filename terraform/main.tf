@@ -1,3 +1,4 @@
+# This file is the main entry point for the Terraform configuration.
 terraform {
   required_providers {
     aws = {
