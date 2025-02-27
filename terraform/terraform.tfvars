@@ -1,7 +1,4 @@
 region             = "us-east-1"
-iam_user_name      = "terraform-user"
-bucket_name        = "terraform-state-bucket-haotieu2001"
-table_name         = "terraform-state-locks"
 root_domain        = "haotieu2001.click"
 dns_record_ttl     = 300
 website_bucket     = "haotieu2001.click"

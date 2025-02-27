@@ -55,22 +55,12 @@ Directory Structure
           5.88.0/
             linux_amd64/
               LICENSE.txt
-  terraform.tfstate
 modules/
-  route53_acm/
-    main.tf
-    outputs.tf
-    variables.tf
-  s3_cloudfront/
-    main.tf
-    outputs.tf
-    variables.tf
-  s3_website/
+  remote-backend/
     main.tf
     outputs.tf
     variables.tf
 .terraform.lock.hcl
-backend.tf
 main.tf
 outputs.tf
 terraform.tfvars
@@ -83,7 +73,7 @@ Files
 ================
 File: .terraform/modules/modules.json
 ================
-{"Modules":[{"Key":"","Source":"","Dir":"."},{"Key":"cloudfront","Source":"./modules/s3_cloudfront","Dir":"modules/s3_cloudfront"},{"Key":"dns_acm","Source":"./modules/route53_acm","Dir":"modules/route53_acm"},{"Key":"s3_website","Source":"./modules/s3_website","Dir":"modules/s3_website"}]}
+{"Modules":[{"Key":"","Source":"","Dir":"."},{"Key":"backend","Source":"./modules/remote-backend","Dir":"modules/remote-backend"}]}
 
 ================
 File: .terraform/providers/registry.terraform.io/hashicorp/aws/5.88.0/linux_amd64/LICENSE.txt
@@ -465,364 +455,111 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
   defined by the Mozilla Public License, v. 2.0.
 
 ================
-File: .terraform/terraform.tfstate
+File: modules/remote-backend/main.tf
 ================
-{
-  "version": 3,
-  "terraform_version": "1.10.3",
-  "backend": {
-    "type": "s3",
-    "config": {
-      "access_key": null,
-      "acl": null,
-      "allowed_account_ids": null,
-      "assume_role": null,
-      "assume_role_with_web_identity": null,
-      "bucket": "terraform-state-bucket-haotieu2001",
-      "custom_ca_bundle": null,
-      "dynamodb_endpoint": null,
-      "dynamodb_table": "terraform-state-locks",
-      "ec2_metadata_service_endpoint": null,
-      "ec2_metadata_service_endpoint_mode": null,
-      "encrypt": null,
-      "endpoint": null,
-      "endpoints": null,
-      "forbidden_account_ids": null,
-      "force_path_style": null,
-      "http_proxy": null,
-      "https_proxy": null,
-      "iam_endpoint": null,
-      "insecure": null,
-      "key": "website/terraform.tfstate",
-      "kms_key_id": null,
-      "max_retries": null,
-      "no_proxy": null,
-      "profile": null,
-      "region": "us-east-1",
-      "retry_mode": null,
-      "secret_key": null,
-      "shared_config_files": null,
-      "shared_credentials_file": null,
-      "shared_credentials_files": null,
-      "skip_credentials_validation": null,
-      "skip_metadata_api_check": null,
-      "skip_region_validation": null,
-      "skip_requesting_account_id": null,
-      "skip_s3_checksum": null,
-      "sse_customer_key": null,
-      "sts_endpoint": null,
-      "sts_region": null,
-      "token": null,
-      "use_dualstack_endpoint": null,
-      "use_fips_endpoint": null,
-      "use_lockfile": null,
-      "use_path_style": null,
-      "workspace_key_prefix": null
-    },
-    "hash": 2906338841
-  }
+# IAM User for Terraform
+resource "aws_iam_user" "terraform_user" {
+  name = var.iam_user_name
 }
 
-================
-File: modules/route53_acm/main.tf
-================
-data "aws_route53_zone" "dns_zone" {
-  name         = var.root_domain
-  private_zone = false
+# Attach AdministratorAccess policy to the IAM user
+resource "aws_iam_user_policy_attachment" "admin_policy_attachment" {
+  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+  user       = aws_iam_user.terraform_user.id
 }
 
-resource "aws_acm_certificate" "ssl_certificate" {
-  domain_name               = var.root_domain
-  subject_alternative_names = ["*.${var.root_domain}"]
-  validation_method         = "DNS"
+# S3 Bucket for Terraform state
+resource "aws_s3_bucket" "terraform_state_bucket" {
+  bucket = var.bucket_name
+
   lifecycle {
-    create_before_destroy = true
+    prevent_destroy = true
+  }
+
+  tags = {
+    Name = var.bucket_name
   }
 }
 
-resource "aws_route53_record" "dns_validation" {
-  allow_overwrite = true
-  name            = tolist(aws_acm_certificate.ssl_certificate.domain_validation_options)[0].resource_record_name
-  records         = [tolist(aws_acm_certificate.ssl_certificate.domain_validation_options)[0].resource_record_value]
-  type            = tolist(aws_acm_certificate.ssl_certificate.domain_validation_options)[0].resource_record_type
-  zone_id         = data.aws_route53_zone.dns_zone.zone_id
-  ttl             =  var.dns_record_ttl
+# Enable versioning for the S3 bucket
+resource "aws_s3_bucket_versioning" "versioning_enabled" {
+  bucket = aws_s3_bucket.terraform_state_bucket.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
 }
 
-resource "aws_acm_certificate_validation" "ssl_validation" {
-  certificate_arn         =   aws_acm_certificate.ssl_certificate.arn
-  validation_record_fqdns =   [aws_route53_record.dns_validation.fqdn]
-}
+# S3 Bucket Policy
+resource "aws_s3_bucket_policy" "s3_bucket_policy" {
+  bucket = aws_s3_bucket.terraform_state_bucket.id
 
-================
-File: modules/route53_acm/outputs.tf
-================
-output "ssl_cert_arn" {
- description = "value of the SSL certificate ARN"
-  value = aws_acm_certificate.ssl_certificate.arn
-}
-
-output "route53_zone_id" {
-  description = "value of the Route53 hosted zone ID"
-  value = data.aws_route53_zone.dns_zone.zone_id
-}
-
-output "root_domain" {
-  description = "value of the root domain"
-  value = var.root_domain
-}
-
-================
-File: modules/route53_acm/variables.tf
-================
-variable "root_domain" {
-  description = "The root domain for the Route53 hosted zone"
-  type        = string
-}
-
-variable "dns_record_ttl" {
-  description = "The TTL for the DNS record"
-  type        = number
-}
-
-================
-File: modules/s3_cloudfront/main.tf
-================
-resource "aws_cloudfront_origin_access_control" "cloudfront_s3_oac" {
-    name                              = "OAC for S3 Buckets 1902"
-    description                       = "Origin Access Control for S3 Buckets"
-    origin_access_control_origin_type = "s3"
-    signing_behavior                  = "always"
-    signing_protocol                  = "sigv4"
-}
-
-resource "aws_cloudfront_distribution" "website_distribution" {
-    enabled                           = true
-    is_ipv6_enabled                   = true               
-    default_root_object               = var.index_document
-    aliases                           = [var.root_domain]
-    
-    origin {
-        domain_name                   =  var.bucket_regional_domain_name
-        origin_id                     =  "S3-${var.s3_bucket_id}"
-        origin_access_control_id      =  aws_cloudfront_origin_access_control.cloudfront_s3_oac.id
-    }
-
-    default_cache_behavior {
-        allowed_methods               = ["GET", "HEAD"]
-        cached_methods                = ["GET", "HEAD"]
-        # Using AWS Managed-CachingOptimized cache policy
-        cache_policy_id               = "658327ea-f89d-4fab-a63d-7e88639e58f6"
-        target_origin_id              = "S3-${var.s3_bucket_id}"
-        viewer_protocol_policy        = "redirect-to-https"
-    } 
-
-    restrictions {
-        geo_restriction {
-            restriction_type          = "none"
-        }
-    }
-
-    viewer_certificate {
-        acm_certificate_arn           = var.ssl_cert_arn
-        ssl_support_method            = "sni-only"
-        minimum_protocol_version      = "TLSv1.2_2021"
-    }
-}
-
-resource "aws_s3_bucket_policy" "cloudfront_oac_policy" {
-  bucket                              =  var.s3_bucket_id
-
-  policy                              = jsonencode({
-    Version                           = "2008-10-17"
-    Id                                = "PolicyForCloudFrontPrivateContent"
+  policy = jsonencode({
+    Version = "2012-10-17",
     Statement = [
       {
-        Sid       = "AllowCloudFrontServicePrincipal"
-        Effect    = "Allow"
+        Effect   = "Allow",
+        Action   = "s3:ListBucket",
+        Resource = aws_s3_bucket.terraform_state_bucket.arn,
         Principal = {
-          Service = "cloudfront.amazonaws.com"
+          AWS = aws_iam_user.terraform_user.arn
         }
-        Action   = "s3:GetObject"
-        Resource = "arn:aws:s3:::${var.s3_bucket_id}/*"
-        Condition = {
-          StringEquals = {
-            "AWS:SourceArn" =   aws_cloudfront_distribution.website_distribution.arn
-          }
+      },
+      {
+        Effect   = "Allow",
+        Action   = ["s3:GetObject", "s3:PutObject"],
+        Resource = "${aws_s3_bucket.terraform_state_bucket.arn}/*",
+        Principal = {
+          AWS = aws_iam_user.terraform_user.arn
         }
       }
     ]
   })
 }
 
-resource "aws_route53_record" "website_alias_record" {
-    zone_id =          var.route53_zone_id
-    name    =          var.root_domain         
-    type    =           "A"         
+# DynamoDB Table for state locking
+resource "aws_dynamodb_table" "state_lock_table" {
+  name         = var.table_name
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "LockID"
 
-    alias {
-        name                   =  aws_cloudfront_distribution.website_distribution.domain_name
-        zone_id                =  aws_cloudfront_distribution.website_distribution.hosted_zone_id
-        evaluate_target_health =  true
-    }
-}
+  attribute {
+    name = "LockID"
+    type = "S"
+  }
 
-================
-File: modules/s3_cloudfront/outputs.tf
-================
-output "cloudfront_distribution_id" {
-    description = "The ID of the CloudFront distribution"
-    value = aws_cloudfront_distribution.website_distribution.id
-  
-}
-
-================
-File: modules/s3_cloudfront/variables.tf
-================
-variable "index_document" {
-  description = "The index document for the website"
-  type        = string
-}
-
-variable "root_domain" {
-  description = "The root domain for the website"
-  type        = string
-  
-}
-
-variable "bucket_regional_domain_name" {
-  description = "The regional domain name of the bucket"
-  type        = string
-}
-
-variable "s3_bucket_id" {
-  description = "The ID of the S3 bucket created for the website"
-  type        = string
-}
-
-variable "ssl_cert_arn" {
-  description = "The ARN of the SSL certificate to use for the website"
-  type        = string
-}
-
-variable "route53_zone_id" {
-  description = "The ID of the Route53 zone to create the record in"
-  type        = string
-  
-}
-
-================
-File: modules/s3_website/main.tf
-================
-resource "aws_s3_bucket" "website_bucket" {
-  bucket = var.website_bucket
-  force_destroy = var.force_destroy
+  lifecycle {
+    prevent_destroy = true
+  }
 
   tags = {
-    Name = "Website Bucket for ${var.website_bucket}"
+    Name = var.table_name
   }
 }
 
-resource "aws_s3_bucket_versioning" "website_versioning" {
-  bucket = aws_s3_bucket.website_bucket.id
-
-  versioning_configuration {
-    status = var.versioning_enabled ? "Enabled" : "Suspended"
-  }
-}
-
-resource "aws_s3_bucket_website_configuration" "website_config" {
-  bucket = aws_s3_bucket.website_bucket.id
-
-  index_document {
-    suffix =  var.index_document
-  }
-}
-
-resource "aws_s3_bucket_public_access_block" "website_bucket_allow_public_access" {
-  bucket = aws_s3_bucket.website_bucket.id
-
-  block_public_acls   = false
-  block_public_policy = false
-  ignore_public_acls  = false
-  restrict_public_buckets = false
-}
-
-resource "aws_s3_bucket_policy" "website_policy" {
-  bucket =  aws_s3_bucket.website_bucket.id
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action    = ["s3:GetObject"],
-        Effect    = "Allow",
-        Resource  = ["${aws_s3_bucket.website_bucket.arn}/*"],
-        Principal = "*"
-      },
-    ]
-  })
-
-  depends_on = [aws_s3_bucket_public_access_block.website_bucket_allow_public_access]
+================
+File: modules/remote-backend/outputs.tf
+================
+output "iam_user_arn" {
+  value = aws_iam_user.terraform_user.arn
 }
 
 ================
-File: modules/s3_website/outputs.tf
+File: modules/remote-backend/variables.tf
 ================
-# bucket id and arn
-output "s3_bucket_id" {
-  description = "The ID of the S3 bucket created for the website"
-  value       = aws_s3_bucket.website_bucket.id
+variable "iam_user_name" {
+  description = "The IAM user name for the backend module"
+  type        = string
 }
 
-output "s3_bucket_arn" {
-  description = "The ARN of the S3 bucket created for the website"
-  value       = aws_s3_bucket.website_bucket.arn
+variable "bucket_name" {
+  description = "The S3 bucket name for the backend module"
+  type        = string
 }
 
-output "website_url" {
-  description = "The URL of the website"
-  value       = "http://${aws_s3_bucket.website_bucket.bucket}.s3-website-${var.region}.amazonaws.com"
-}
-
-output "index_document" {
-  description = "The index document for the website"
-  value       = var.index_document
-}
-
-output "bucket_regional_domain_name" {
-  description = "The regional domain name of the bucket"
-  value       = aws_s3_bucket.website_bucket.bucket_regional_domain_name
-}
-
-================
-File: modules/s3_website/variables.tf
-================
-variable "website_bucket" {
-    description = "The name of the S3 bucket to create for the website"
-    type        = string
-    }
-
-variable "force_destroy" {
-    description = "A boolean that indicates all objects should be deleted from the bucket so that the bucket can be destroyed without error"
-    type        = bool
-    default     = false
-    }
-
-variable "versioning_enabled" {
-    description = "A boolean that indicates if versioning should be enabled for the bucket"
-    type        = bool
-    default     = true
-    }
-
-variable "index_document" {
-    description = "The name of the index document to use for the bucket"
-    type        = string
-    default     = "index.html"
-    }
-  
-variable "region" {
-    description = "The AWS region to create the S3 bucket in"
-    type        = string  
+variable "table_name" {
+  description = "The DynamoDB table name for the backend module"
+  type        = string
 }
 
 ================
@@ -855,22 +592,8 @@ provider "registry.terraform.io/hashicorp/aws" {
 }
 
 ================
-File: backend.tf
-================
-terraform {
-  backend "s3" {
-    region                          = "us-east-1"
-    bucket                          = "terraform-state-bucket-haotieu2001"
-    key                             = "website/terraform.tfstate"
-    dynamodb_table                  = "terraform-state-locks"
-   # encrypt                         = true  
-  }
-}
-
-================
 File: main.tf
 ================
-# This file is the main entry point for the Terraform configuration.
 terraform {
   required_providers {
     aws = {
@@ -880,71 +603,35 @@ terraform {
   }
 }
 
-# Configure the AWS Provider
 provider "aws" {
   region = var.region
 }
 
-
-module "dns_acm" {
-  source         = "./modules/route53_acm"
-  root_domain    = var.root_domain
-  dns_record_ttl = var.dns_record_ttl
-}
-
-module "s3_website" {
-  source             = "./modules/s3_website"
-  website_bucket     = var.website_bucket
-  force_destroy      = var.force_destroy
-  versioning_enabled = var.versioning_enabled
-  index_document     = var.index_document
-  region             = var.region
-}
-
-module "cloudfront" {
-  source                      = "./modules/s3_cloudfront"
-  index_document              = module.s3_website.index_document
-  root_domain                 = "frontend.${module.dns_acm.root_domain}"  # Changed from root to subdomain
-  bucket_regional_domain_name = module.s3_website.bucket_regional_domain_name
-  s3_bucket_id                = module.s3_website.s3_bucket_id
-  ssl_cert_arn                = module.dns_acm.ssl_cert_arn
-  route53_zone_id             = module.dns_acm.route53_zone_id
-
+module "backend" {
+  source        = "./modules/remote-backend"
+  iam_user_name = var.iam_user_name
+  bucket_name   = var.bucket_name
+  table_name    = var.table_name
 }
 
 ================
 File: outputs.tf
 ================
-output "s3_bucket_id" {
-  description = "The S3 bucket ID"
-  value       = module.s3_website.s3_bucket_id
+output "state_bucket_name" {
+  value = module.backend.aws_s3_bucket.terraform_state_bucket.id
 }
 
-output "s3_bucket_arn" {
-  description = "The S3 bucket ARN"
-  value       = module.s3_website.s3_bucket_arn
-}
-
-output "website_url" {
-  description = "The URL of the website"
-  value       = module.s3_website.website_url
-}
-
-output "cloudfront_distribution_id" {
-  description = "The ID of the CloudFront distribution"
-  value       = module.cloudfront.cloudfront_distribution_id
+output "lock_table_name" {
+  value = module.backend.aws_dynamodb_table.state_lock_table.id
 }
 
 ================
 File: terraform.tfvars
 ================
-region             = "us-east-1"
-root_domain        = "haotieu2001.click"
-dns_record_ttl     = 300
-website_bucket     = "haotieu2001.click"
-force_destroy      = false
-versioning_enabled = true
-index_document     = "index.html"
+region        = "us-east-1"
+iam_user_name = "terraform-user"
+bucket_name   = "terraform-state-bucket-haotieu2001"
+table_name    = "terraform-state-locks"
 
 ================
 File: variables.tf
@@ -954,37 +641,19 @@ variable "region" {
   type        = string
 }
 
-variable "root_domain" {
-  description = "The root domain for the Route53 hosted zone"
+variable "iam_user_name" {
+  description = "The IAM user name for the backend module"
   type        = string
 }
 
-variable "dns_record_ttl" {
-  description = "The TTL for the DNS record"
-  type        = number
-}
-
-variable "website_bucket" {
-  description = "The name of the S3 bucket to create for the website"
+variable "bucket_name" {
+  description = "The S3 bucket name for the backend module"
   type        = string
 }
 
-variable "force_destroy" {
-  description = "A boolean that indicates all objects should be deleted from the bucket so that the bucket can be destroyed without error"
-  type        = bool
-  default     = false
-}
-
-variable "versioning_enabled" {
-  description = "A boolean that indicates if versioning should be enabled for the bucket"
-  type        = bool
-  default     = true
-}
-
-variable "index_document" {
-  description = "The name of the index document to use for the bucket"
+variable "table_name" {
+  description = "The DynamoDB table name for the backend module"
   type        = string
-  default     = "index.html"
 }
 
 

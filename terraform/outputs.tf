@@ -1,7 +1,3 @@
-output "iam_user_name" {
-  description = "The IAM user for Terraform"
-  value       = module.backend.iam_user_arn
-}
 
 output "s3_bucket_id" {
   description = "The S3 bucket ID"

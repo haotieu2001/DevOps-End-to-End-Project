@@ -14,7 +14,7 @@ resource "aws_s3_bucket" "terraform_state_bucket" {
   bucket = var.bucket_name
 
   lifecycle {
-    prevent_destroy = true
+ #  prevent_destroy = true
   }
 
   tags = {
@@ -70,10 +70,11 @@ resource "aws_dynamodb_table" "state_lock_table" {
   }
 
   lifecycle {
-    prevent_destroy = true
+  #  prevent_destroy = true
   }
 
   tags = {
     Name = var.table_name
   }
 }
+
