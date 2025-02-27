@@ -1,7 +1,7 @@
 // src/TodoList.js
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import './TodoList.css'; // Import the CSS file
+import './TodoList.css'; //  Import the CSS file
 
 function TodoList() {
     const [todos, setTodos] = useState([]);
